@@ -53,8 +53,22 @@
   </div>
   <div id="swipeup" style="visibility:hidden"></div>
 
-<!-- WalletConnect v2 Ethereum Provider -->
-<script src="https://cdn.jsdelivr.net/npm/@walletconnect/ethereum-provider@2.17.0/dist/index.umd.js" charset="utf-8"></script>
+<!-- process polyfill required by WalletConnect UMD bundle (Electron renderer has nodeIntegration:false) -->
+<script>if (typeof process === 'undefined') { window.process = { env: { NODE_ENV: 'production' }, browser: true, version: '', versions: {} }; }</script>
+
+<!-- WalletConnect v2 Ethereum Provider (bundled locally for Electron compatibility) -->
+<script src="walletconnect.umd.js" charset="utf-8"></script>
+<script>
+  (function() {
+    var pkg = window["@walletconnect/ethereum-provider"];
+    if (pkg) {
+      window.EthereumProvider = pkg.default || pkg.EthereumProvider || pkg;
+      console.log("[WalletConnect] SDK ready:", typeof window.EthereumProvider);
+    } else {
+      console.warn("[WalletConnect] SDK failed to load");
+    }
+  })();
+</script>
 <script src="screenfull.min.js" charset="utf-8"></script>
 
 <script src="src/settings.js" charset="utf-8"></script>
