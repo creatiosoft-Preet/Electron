@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Portfolio Chart Mini</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; }
+        body { background: #2a2a2a; font-family: Arial, sans-serif; }
+        #chart-container { 
+            width: 100%; 
+            height: 100%; 
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            background: #2a2a2a; 
+            touch-action: none; 
+            -webkit-user-select: none; 
+            user-select: none; 
+        }
+    </style>
+    <script src="lightweight-charts.standalone.production.js" defer></script>
+</head>
+<body>
+    <div id="chart-container"></div>
+
+    <script>
+        let chart = null;
+        let areaSeries = null;
+        let dataPoints = [];
+        let currentTrend = "Up";
+        let lastValue = 0;
+
+        const colorSchemes = {
+            Up: {
+                lineColor: 'rgba(76, 175, 80, 1)',
+                topColor: 'rgba(76, 175, 80, 0.68)',
+                bottomColor: 'rgba(56, 142, 60, 0.08)',
+                priceLineColor: 'rgba(76, 175, 80, 0.7)',
+            },
+            Down: {
+                lineColor: 'rgba(226, 74, 74, 1)',
+                topColor: 'rgba(211, 42, 42, 0.68)',
+                bottomColor: 'rgba(179, 37, 37, 0.08)',
+                priceLineColor: 'rgba(255, 41, 41, 0.7)',
+            }
+        };
+
+        function formatNumber(num) {
+            if (typeof num !== 'number') num = parseFloat(num) || 0;
+            const integerNum = Math.round(num);
+            return integerNum.toLocaleString('en-US');
+        }
+
+        window.initMiniChartWithSize = function(width, height) {
+            const container = document.getElementById('chart-container');
+            if (!container) return;
+
+            container.style.width = width + 'px';
+            container.style.height = height + 'px';
+
+            if (chart) {
+                container.innerHTML = '';
+                chart = null;
+                areaSeries = null;
+            }
+
+            try {
+                chart = LightweightCharts.createChart(container, {
+                    width: width,
+                    height: height,
+                    layout: {
+                        background: { color: '#2a2a2a' },
+                        textColor: 'transparent',
+                        fontSize: 0
+                    },
+                    grid: {
+                        vertLines: { color: 'transparent', visible: false },
+                        horzLines: { color: 'transparent', visible: false }
+                    },
+                    timeScale: {
+                        visible: false,
+                        timeVisible: false,
+                        secondsVisible: false,
+                        rightOffset: 0,  // 改成 0，让图表铺满到最右边
+                        fixLeftEdge: true,
+                        lockVisibleTimeRangeOnResize: true,
+                    },
+                    rightPriceScale: { visible: false, borderVisible: false },
+                    leftPriceScale: { visible: false, borderVisible: false },
+                    crosshair: {
+                        horzLine: { visible: false },
+                        vertLine: { visible: false }
+                    },
+                    handleScroll: {
+                        mouseWheel: false,
+                        pressedMouseMove: false,
+                        horzTouchDrag: false,
+                        vertTouchDrag: false
+                    },
+                    handleScale: {
+                        axisPressedMouseMove: false,
+                        axisDoubleClickReset: false,
+                        mouseWheel: false,
+                        pinch: false
+                    }
+                });
+
+                const colors = colorSchemes[currentTrend];
+                areaSeries = chart.addAreaSeries({
+                    lineColor: colors.lineColor,
+                    lineWidth: 1,
+                    topColor: colors.topColor,
+                    bottomColor: colors.bottomColor,
+                    priceLineVisible: false,
+                    lastValueVisible: false
+                });
+
+                chart.timeScale().applyOptions({
+                    barSpacing: 2,
+                    minBarSpacing: 1,
+                    maxBarSpacing: 3
+                });
+
+            } catch (error) {
+                console.error('Mini chart init failed:', error);
+            }
+        };
+
+        window.setMiniHistoryData = function(data, trend) {
+            if (!chart || !areaSeries) {
+                setTimeout(() => window.setMiniHistoryData(data, trend), 80);
+                return;
+            }
+
+            try {
+                dataPoints = [];
+
+                // if (trend && trend !== currentTrend) {
+                    currentTrend = trend;
+                    const colors = colorSchemes[currentTrend];
+                    areaSeries.applyOptions({
+                        lineColor: colors.lineColor,
+                        topColor: colors.topColor,
+                        bottomColor: colors.bottomColor
+                    });
+                // }
+
+                if (data.length > 0) {
+                    dataPoints = data.map((item, index) => ({
+                        time: index,
+                        value: item.value
+                    }));
+                    areaSeries.setData(dataPoints);
+                    lastValue = data[data.length - 1].value;
+                } else {
+                    areaSeries.setData([{ time: 0, value: 0 }]);
+                    lastValue = 0;
+                }
+
+                chart.timeScale().fitContent();
+
+            } catch (error) {
+                console.error('setMiniHistoryData error:', error);
+            }
+        };
+
+        window.updateMiniChartData = function(value, timestamp, trend) {
+            if (!chart || !areaSeries) {
+                setTimeout(() => window.updateMiniChartData(value, timestamp, trend), 80);
+                return;
+            }
+
+            try {
+                // if (trend && trend !== currentTrend) {
+                    currentTrend = trend;
+                    const colors = colorSchemes[currentTrend];
+                    areaSeries.applyOptions({
+                        lineColor: colors.lineColor,
+                        topColor: colors.topColor,
+                        bottomColor: colors.bottomColor
+                    });
+                // }
+
+                const newPoint = { time: dataPoints.length, value: value };
+                dataPoints.push(newPoint);
+                areaSeries.update(newPoint);
+
+                lastValue = value;
+
+                if (dataPoints.length % 10 === 0) {
+                    chart.timeScale().fitContent();
+                }
+
+            } catch (error) {
+                console.error('updateMiniChartData error:', error);
+            }
+        };
+
+        window.resetMiniChart = function() {
+            dataPoints = [];
+            currentTrend = "Up";
+            lastValue = 0;
+            if (areaSeries) areaSeries.setData([]);
+        };
+
+        window.addEventListener('load', function() {
+            setTimeout(() => {
+                const container = document.getElementById('chart-container');
+                const w = container?.clientWidth > 0 ? container.clientWidth : 200;
+                const h = container?.clientHeight > 0 ? container.clientHeight : 100;
+                window.initMiniChartWithSize(w, h);
+            }, 30);
+        });
+
+        window.testFormat = function() {
+            const testValues = [1000346.59, 1000000, 101000, 1000, 999];
+            testValues.forEach(val => {
+                console.log(`${val} → ${formatNumber(val)}`);
+            });
+        };
+    </script>
+</body>
+</html>

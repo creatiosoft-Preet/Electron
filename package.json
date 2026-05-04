@@ -1,0 +1,29 @@
+{
+  "name": "wtl-desktop",
+  "version": "3.3.0",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^24.0.0"
+  },
+  "build": {
+    "appId": "com.wtl.desktop",
+    "productName": "WTL",
+    "files": [
+      "build/**/*",
+      "main.js"
+    ],
+    "win": {
+      "target": "nsis",
+      "signAndEditExecutable": false
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.games"
+    }
+  }
+}

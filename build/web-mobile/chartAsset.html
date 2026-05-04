@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta name="viewport"
+		content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+	<title>Asset Price Chart</title>
+	<style>
+		* {
+			margin: 0;
+			padding: 0;
+			box-sizing: border-box;
+		}
+
+		html,
+		body {
+			width: 100%;
+			height: 100%;
+			margin: 0;
+			padding: 0;
+			overflow: hidden;
+		}
+
+		body {
+			background: #2d2d2d;
+			font-family: Arial, sans-serif;
+		}
+
+		#chart-container {
+			width: 100vw !important;
+			height: 100vh !important;
+			position: absolute;
+			inset: 0;
+			margin: 0;
+			padding: 0;
+			background: #2d2d2d;
+			touch-action: none;
+			-webkit-user-select: none;
+			user-select: none;
+		}
+
+		#chart-container canvas {
+			margin-left: -10px !important;
+		}
+	</style>
+	<script src="./lightweight-charts.standalone.production.js"></script>
+</head>
+
+<body>
+	<div id="chart-container"></div>
+
+	<script>
+		let chart = null;
+		let areaSeries = null;
+		let dataPoints = [];
+		let dataIndex = 0;
+		let startTimestamp = null;
+		let currentTrend = "Up";
+
+		const colorSchemes = {
+			Up: {
+				lineColor: 'rgba(76, 175, 80, 1)',
+				topColor: 'rgba(76, 175, 80, 0.68)',
+				bottomColor: 'rgba(56, 142, 60, 0.08)',
+				priceLineColor: 'rgba(76, 175, 80, 0.7)'
+			},
+			Down: {
+				lineColor: 'rgba(226, 74, 74, 1)',
+				topColor: 'rgba(211, 42, 42, 0.68)',
+				bottomColor: 'rgba(179, 37, 37, 0.08)',
+				priceLineColor: 'rgba(255, 41, 41, 0.7)'
+			}
+		};
+
+		function formatDisplayTime(timestamp) {
+			const date = new Date(timestamp);
+			const hours = date.getHours().toString().padStart(2, '0');
+			const minutes = date.getMinutes().toString().padStart(2, '0');
+			const seconds = date.getSeconds().toString().padStart(2, '0');
+			return `${hours}:${minutes}:${seconds}`;
+		}
+
+		function formatPrice(value) {
+			if (value >= 1000) return value.toFixed(2);
+			if (value >= 1) return value.toFixed(2);
+			return value.toFixed(4);
+		}
+
+		window.initAssetChartWithSize = function (width, height) {
+			const container = document.getElementById('chart-container');
+			if (!container) return;
+
+			container.style.width = width + 'px';
+			container.style.height = height + 'px';
+
+			if (chart) {
+				container.innerHTML = '';
+				chart = null;
+				areaSeries = null;
+			}
+
+			try {
+				chart = LightweightCharts.createChart(container, {
+					width: width,
+					height: height,
+					layout: {
+						background: { color: '#2d2d2d' },
+						textColor: '#ffffff',
+						fontSize: 10
+					},
+					grid: {
+						vertLines: { color: '#353547', style: 1 },
+						horzLines: { color: '#353547', style: 1 }
+					},
+					timeScale: {
+						timeVisible: true,
+						secondsVisible: false,
+						rightOffset: 0,
+						barSpacing: 6,
+						borderVisible: true,
+						tickMarkMaxCharacterLength: 8,
+						tickMarkFormatter: (time) => {
+							const index = parseInt(time);
+							if (startTimestamp && dataPoints[index]) {
+								return formatDisplayTime(dataPoints[index].originalTime);
+							}
+							return '';
+						}
+					},
+					rightPriceScale: {
+						visible: true,
+						borderVisible: true,
+						scaleMargins: { top: 0.1, bottom: 0.1 }
+					},
+					handleScroll: {
+						mouseWheel: true,
+						pressedMouseMove: true,
+						horzTouchDrag: true
+					},
+					handleScale: {
+						axisPressedMouseMove: true,
+						mouseWheel: true,
+						pinch: true
+					}
+				});
+
+				const colors = colorSchemes[currentTrend];
+				areaSeries = chart.addAreaSeries({
+					lineColor: colors.lineColor,
+					lineWidth: 2,
+					topColor: colors.topColor,
+					bottomColor: colors.bottomColor,
+					priceLineVisible: true,
+					priceLineColor: colors.priceLineColor,
+					priceFormat: {
+						type: 'custom',
+						formatter: (price) => formatPrice(price)
+					}
+				});
+
+				chart.timeScale().applyOptions({
+					barSpacing: 6,
+					minBarSpacing: 2,
+					maxBarSpacing: 15
+				});
+
+				const resizeObserver = new ResizeObserver(entries => {
+					for (let entry of entries) {
+						const { width, height } = entry.contentRect;
+						if (width > 10 && height > 10) {
+							chart.applyOptions({ width, height });
+							chart.timeScale().fitContent();
+						}
+					}
+				});
+
+				resizeObserver.observe(container);
+
+			} catch (error) {
+				console.error('Asset chart init failed:', error);
+			}
+		};
+
+		window.setAssetHistoryData = function (data, trend) {
+			if (!chart || !areaSeries) {
+				setTimeout(() => window.setAssetHistoryData(data, trend), 100);
+				return;
+			}
+
+			try {
+				dataPoints = [];
+				dataIndex = 0;
+				startTimestamp = null;
+
+				currentTrend = trend || "Up";
+				const colors = colorSchemes[currentTrend];
+				areaSeries.applyOptions({
+					lineColor: colors.lineColor,
+					topColor: colors.topColor,
+					bottomColor: colors.bottomColor,
+					priceLineColor: colors.priceLineColor
+				});
+
+				if (data.length > 0) {
+					startTimestamp = new Date(data[0].timestamp || data[0].time).getTime();
+
+					dataPoints = data.map((item, index) => ({
+						time: index,
+						value: item.value,
+						originalTime: new Date(item.timestamp || item.time).getTime()
+					}));
+
+					dataIndex = data.length;
+
+					areaSeries.setData(dataPoints.map(p => ({ time: p.time, value: p.value })));
+
+					const lastIndex = dataPoints.length - 1;
+					chart.timeScale().setVisibleLogicalRange({
+						from: Math.max(0, lastIndex - 50),
+						to: lastIndex + 5
+					});
+					chart.timeScale().fitContent();
+				} else {
+					areaSeries.setData([]);
+					chart.timeScale().setVisibleLogicalRange({ from: 0, to: 5 });
+					chart.timeScale().fitContent();
+				}
+
+			} catch (error) {
+				console.error('setAssetHistoryData error:', error);
+			}
+		};
+
+		window.updateAssetChartData = function (price, timestamp, trend) {
+			if (!chart || !areaSeries) {
+				setTimeout(() => window.updateAssetChartData(price, timestamp, trend), 100);
+				return;
+			}
+
+			try {
+				currentTrend = trend || currentTrend;
+				const colors = colorSchemes[currentTrend];
+				areaSeries.applyOptions({
+					lineColor: colors.lineColor,
+					topColor: colors.topColor,
+					bottomColor: colors.bottomColor,
+					priceLineColor: colors.priceLineColor
+				});
+
+				if (!startTimestamp) {
+					startTimestamp = new Date(timestamp).getTime();
+				}
+
+				const newPoint = {
+					time: dataIndex,
+					value: price,
+					originalTime: new Date(timestamp).getTime()
+				};
+
+				dataPoints.push(newPoint);
+				dataIndex++;
+
+				areaSeries.update(newPoint);
+
+				const lastIndex = dataPoints.length - 1;
+				chart.timeScale().setVisibleLogicalRange({
+					from: Math.max(0, lastIndex - 50),
+					to: lastIndex + 5
+				});
+				chart.timeScale().fitContent();
+
+			} catch (error) {
+				console.error('updateAssetChartData error:', error);
+			}
+		};
+
+		window.resetAssetChart = function () {
+			dataPoints = [];
+			dataIndex = 0;
+			startTimestamp = null;
+			currentTrend = "Up";
+
+			if (!chart) return;
+
+			if (areaSeries) {
+				chart.removeSeries(areaSeries);
+				areaSeries = null;
+			}
+
+			const colors = colorSchemes[currentTrend];
+			areaSeries = chart.addAreaSeries({
+				lineColor: colors.lineColor,
+				lineWidth: 2,
+				topColor: colors.topColor,
+				bottomColor: colors.bottomColor,
+				priceLineVisible: true,
+				priceLineColor: colors.priceLineColor,
+				priceFormat: {
+					type: 'custom',
+					formatter: (price) => formatPrice(price)
+				}
+			});
+
+			areaSeries.setData([]);
+			chart.timeScale().setVisibleLogicalRange({ from: 0, to: 5 });
+			chart.timeScale().fitContent();
+		};
+
+		window.addEventListener('load', function () {
+			setTimeout(() => {
+				const container = document.getElementById('chart-container');
+				if (container && container.clientWidth > 0 && container.clientHeight > 0) {
+					window.initAssetChartWithSize(container.clientWidth, container.clientHeight);
+				} else {
+					window.initAssetChartWithSize(400, 300);
+				}
+			}, 100);
+		});
+	</script>
+</body>
+
+</html>

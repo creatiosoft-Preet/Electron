@@ -1,0 +1,1 @@
+window._CCSettings={platform:"web-mobile",groupList:["default"],collisionMatrix:[[true]],hasResourcesBundle:true,hasStartSceneBundle:false,remoteBundles:[],subpackages:[],launchScene:"db://assets/resources/scenes/Launch.fire",orientation:"landscape",jsList:["assets/Script/sns-websdk-builder.js","assets/creatiosoft/lib/mqttws31.js","assets/creatiosoft/lib/socket.io.min.js"]};
