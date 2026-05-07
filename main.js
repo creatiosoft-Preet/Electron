@@ -1,4 +1,4 @@
-const { app, BrowserWindow, session, globalShortcut } = require("electron");
+const { app, BrowserWindow, session } = require("electron");
 const path = require("path");
 const os = require("os");
 const fs = require("fs");
@@ -84,9 +84,11 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, "build/web-mobile/index.html"));
     mainWindow.maximize();
 
-    // F12 to toggle DevTools
-    globalShortcut.register("F12", () => {
-        if (mainWindow) mainWindow.webContents.toggleDevTools();
+    // F12 to toggle DevTools (before-input-event works reliably in packaged exe)
+    mainWindow.webContents.on("before-input-event", (event, input) => {
+        if (input.key === "F12" && input.type === "keyDown") {
+            mainWindow.webContents.toggleDevTools();
+        }
     });
 
     mainWindow.webContents.on("context-menu", (e) => {

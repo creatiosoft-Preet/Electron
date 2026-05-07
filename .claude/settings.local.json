@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(git -C /Users/mohitpandey/Desktop/Preet/Testing/Electron status)"
-    ]
-  }
-}
